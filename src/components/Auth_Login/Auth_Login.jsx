@@ -40,7 +40,7 @@ const LoginPage = () => {
           navigate('/BookingForm');
           break;
         case 'ROLE_DRIVER':
-          navigate('/driver-dashboard');
+          navigate('/DriverProfile');
           break;
         default:
           setError('Invalid user role');
