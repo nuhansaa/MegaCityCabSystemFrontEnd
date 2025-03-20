@@ -52,7 +52,7 @@ const Cabs = () => {
 
   const handleBooking = (vehicleId) => {
     const selectedVehicle = vehicles.find(v => v.id === vehicleId);
-    navigate('/BookingForm', { state: { vehicle: selectedVehicle } });
+    navigate('/AuthLogin', { state: { vehicle: selectedVehicle } });
   };
 
   // SVG Icons
@@ -269,7 +269,7 @@ const Cabs = () => {
                     <span>{vehicle.luggage} Luggage</span>
                   </div>
                 </div>
-                <a href='/AuthLogin'>
+                {/* <a href='/AuthLogin'> */}
                 <button 
                   style={{
                     ...styles.bookButton,
@@ -280,7 +280,7 @@ const Cabs = () => {
                 >
                   Book Now
                 </button>
-                </a>
+                {/* </a> */}
               </div>
             </div>
           ))}
