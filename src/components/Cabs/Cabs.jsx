@@ -52,7 +52,7 @@ const Cabs = () => {
 
   const handleBooking = (vehicleId) => {
     const selectedVehicle = vehicles.find(v => v.id === vehicleId);
-    navigate('/AuthLogin', { state: { vehicle: selectedVehicle } });
+    navigate('/BookingForm', { state: { vehicle: selectedVehicle } });
   };
 
   // SVG Icons

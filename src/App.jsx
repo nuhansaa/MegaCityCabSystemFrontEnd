@@ -12,6 +12,7 @@ import BookingForm from './components/BookingForm/BookingForm'
 import AdminRoutes from './components/Admin_Panel/AdminRoutes'
 import DriverProfile from './components/DriverProfile/DriverProfile'
 import UpdateDriverProfile from './components/DriverProfile/UpdateDriverProfile'
+import CustomerProfile from './components/Customer/CustomerProfile'
 
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
         <Route path='/admin/*' element={<AdminRoutes/>}/>
         <Route path='/DriverProfile' element={<DriverProfile/>}/>
         <Route path='/UpdateDriverProfile' element={<UpdateDriverProfile/>}/>
+        <Route path='/CustomerProfile' element={<CustomerProfile/>}/>
         
       </Routes>
     </>

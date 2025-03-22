@@ -3,12 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { LoadScript, Autocomplete, GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import {
-  CarIcon,
-  CalendarIcon,
-  MapPinIcon,
-  CheckIcon,
-} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyAe8qybKlyLJc7fAC3s-0NwUApOPYRILCs";
@@ -63,20 +57,23 @@ const Booking = () => {
     pickupLocation: preservedBookingData?.pickupLocation || 'Colombo City Center',
     dropLocation: preservedBookingData?.dropLocation || 'Bandaranaike Airport',
     driverRequired: preservedBookingData?.driverRequired || false,
-    pickupCoords: [6.9271, 79.8612], // Default Colombo City Center
-    dropCoords: [7.1806, 79.8846],   // Default Bandaranaike Airport
+    pickupCoords: [6.9271, 79.8612],
+    dropCoords: [7.1806, 79.8846],
   });
+  
   const [availableCars, setAvailableCars] = useState([]);
   const [selectedCar, setSelectedCar] = useState(preselectedCar);
   const [step, setStep] = useState(preselectedCar ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fare, setFare] = useState({
-    baseFare: 5.0,
+    baseFare: 2000,
     distanceFare: 0,
-    tax: 2.5,
+    tax: 0,
     total: 0,
     distance: 0,
+    ratePerKm: 35,
+    driverFee: 0
   });
   const [directions, setDirections] = useState(null);
   const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
@@ -95,30 +92,35 @@ const Booking = () => {
             id: car.carId,
             brand: car.carBrand,
             model: car.carModel,
-            type: car.carType || 'Economy',
+            type: car.carType || 'Car',
             seats: car.capacity,
-            image: car.carImgUrl || 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?q=80&w=2128&auto=format&fit=crop',
+            image: car.carImgUrl || 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2',
             hourlyRate: car.type === 'Luxury' ? 25 : car.type === 'Van' ? 20 : 15,
           }));
         setAvailableCars(availableCars);
       } catch (error) {
         console.error('Error fetching cars:', error);
-        setError('Unable to load available vehicles. Please try again later.');
+        setError('Unable to load available vehicles.');
       }
     };
-    if (!preselectedCar) {
-      fetchAvailableCars();
-    }
+    if (!preselectedCar) fetchAvailableCars();
   }, [preselectedCar]);
 
   useEffect(() => {
     if (bookingData.pickupCoords && bookingData.dropCoords && window.google?.maps) {
       const distance = getDistance(bookingData.pickupCoords, bookingData.dropCoords);
+      const distanceFare = distance * fare.ratePerKm;
+      const driverFee = bookingData.driverRequired ? 750 : 0;
+      const subtotal = fare.baseFare + distanceFare + driverFee;
+      const tax = subtotal * 0.3;
+      
       setFare((prev) => ({
         ...prev,
         distance,
-        distanceFare: distance * 1.5,
-        total: prev.baseFare + distance * 1.5 + prev.tax + (bookingData.driverRequired ? 30 : 0),
+        distanceFare,
+        driverFee,
+        tax,
+        total: subtotal + tax
       }));
 
       const directionsService = new window.google.maps.DirectionsService();
@@ -133,7 +135,7 @@ const Booking = () => {
             setDirections(result);
           } else {
             console.error(`Directions request failed due to ${status}`);
-            setError("Failed to load route. Please try again.");
+            setError("Failed to load route.");
           }
         }
       );
@@ -160,7 +162,7 @@ const Booking = () => {
           }));
         }
       } else {
-        setError("Please select a valid location from the suggestions.");
+        setError("Please select a valid location.");
       }
     }
   };
@@ -201,9 +203,7 @@ const Booking = () => {
 
     try {
       const token = localStorage.getItem('jwtToken');
-      if (!token) {
-        throw new Error("No authentication token found. Please log in again.");
-      }
+      if (!token) throw new Error("Please log in again.");
 
       const response = await fetch('http://localhost:8080/auth/bookings/createbooking', {
         method: 'POST',
@@ -217,18 +217,15 @@ const Booking = () => {
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error("Authentication failed. Please log in again.");
-        } else {
-          const errorText = await response.text();
-          throw new Error(errorText || "Booking failed");
         }
+        throw new Error("Booking failed");
       }
-
+      
       setIsConfirmed(true);
       setStep(3);
-      toast.success("Booking Successful! Your ride has been confirmed.");
+      toast.success("Booking Successful!");
     } catch (error) {
       setError(`Booking failed: ${error.message}`);
-      console.error("Booking error:", error);
     } finally {
       setLoading(false);
     }
@@ -236,190 +233,183 @@ const Booking = () => {
 
   const handleChangeVehicle = () => {
     navigate('/ourfleet', {
-      state: {
-        bookingData: bookingData,
-        fromBooking: true,
-      },
+      state: { bookingData, fromBooking: true },
     });
   };
 
   const renderVehicleSelection = () => (
-    <div className="mb-12">
-      <h3 className="text-2xl font-bold text-lime-400 mb-6">Select Your Vehicle</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {availableCars.length > 0 ? (
-          availableCars.map((car) => (
-            <div
-              key={car.id}
-              className={`bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer transition-all ${
-                selectedCar?.id === car.id
-                  ? 'ring-4 ring-lime-400 transform scale-105'
-                  : 'hover:shadow-xl border border-gray-700'
-              }`}
-              onClick={() => handleCarSelect(car)}
-            >
-              <div className="relative">
-                <img
-                  src={car.image}
-                  alt={`${car.brand} ${car.model}`}
-                  className="w-full h-48 object-cover"
-                />
-              </div>
-              <div className="p-6">
-                <h4 className="font-bold text-xl mb-2 text-lime-400">
-                  {car.brand} {car.model}
-                </h4>
-                <div className="text-gray-400 mb-6 space-y-1">
-                  <p className="flex items-center">
-                    <span className="w-24 font-medium">Type:</span>
-                    <span>{car.type}</span>
-                  </p>
-                  <p className="flex items-center">
-                    <span className="w-24 font-medium">Seats:</span>
-                    <span>{car.seats}</span>
-                  </p>
-                </div>
-                <button
-                  className={`w-full py-3 rounded-lg transition ${
-                    selectedCar?.id === car.id
-                      ? 'bg-lime-400 text-gray-900 font-bold'
-                      : 'bg-gray-700 text-lime-400'
-                  }`}
-                >
-                  {selectedCar?.id === car.id ? 'Selected' : 'Select'}
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-3 text-center py-12">
-            <CarIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-400">Loading available vehicles...</p>
-          </div>
-        )}
+    <div className="bg-gray-800 rounded-lg border-2 border-lime-400 overflow-hidden">
+      <div className="p-6 border-b border-gray-700">
+        <h2 className="text-2xl font-bold text-lime-400 flex items-center">
+          <span className="mr-2">🚗</span> Choose Your Ride
+        </h2>
       </div>
-      {error && (
-        <div className="mt-6 p-4 bg-red-900 text-red-300 rounded-lg">{error}</div>
-      )}
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {availableCars.map((car) => (
+          <div
+            key={car.id}
+            className={`bg-gray-900 p-4 rounded border-2 ${
+              selectedCar?.id === car.id ? 'border-lime-400' : 'border-gray-700'
+            } cursor-pointer`}
+            onClick={() => handleCarSelect(car)}
+          >
+            <img
+              src={car.image}
+              alt={`${car.brand} ${car.model}`}
+              className="w-full h-40 object-cover rounded mb-3"
+            />
+            <div className="text-lime-400 font-bold">{car.brand} {car.model}</div>
+            <div className="text-sm text-gray-400 flex space-x-4">
+              <span>{car.type}</span>
+              <span>{car.seats} seats</span>
+            </div>
+            <button
+              className={`w-full mt-3 py-2 rounded text-sm font-bold ${
+                selectedCar?.id === car.id
+                  ? 'bg-lime-400 text-gray-900'
+                  : 'bg-gray-700 text-lime-400'
+              }`}
+            >
+              {selectedCar?.id === car.id ? 'SELECTED' : 'SELECT'}
+            </button>
+          </div>
+        ))}
+      </div>
+      {error && <div className="p-6 text-red-400">{error}</div>}
     </div>
   );
 
   const renderBookingDetails = () => (
-    <div className="mb-12">
-      <h3 className="text-2xl font-bold text-lime-400 mb-6">Complete Your Booking</h3>
-      {error && (
-        <div className="mb-4 p-3 bg-red-900 text-red-300 rounded-lg">{error}</div>
-      )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg mb-6">
-            <h4 className="font-bold text-lg mb-4 text-lime-400">Trip Details</h4>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Pickup Location</label>
-                <Autocomplete
-                  onLoad={(autocomplete) => setPickupAutocomplete(autocomplete)}
-                  onPlaceChanged={() => onPlaceChanged("pickup")}
-                  options={{
-                    bounds: COLOMBO_BOUNDS,
-                    strictBounds: false,
-                    types: ["geocode"],
-                    componentRestrictions: { country: "lk" },
-                  }}
-                >
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 bg-gray-800 rounded-lg border-2 border-lime-400 overflow-hidden">
+        <div className="p-6 border-b border-gray-700">
+          <h2 className="text-2xl font-bold text-lime-400 flex items-center">
+            <span className="mr-2">🚗</span> Book Your Journey
+          </h2>
+        </div>
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Starting Point</label>
+              <Autocomplete
+                onLoad={(autocomplete) => setPickupAutocomplete(autocomplete)}
+                onPlaceChanged={() => onPlaceChanged("pickup")}
+                options={{ bounds: COLOMBO_BOUNDS, componentRestrictions: { country: "lk" } }}
+              >
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <div className="w-3 h-3 bg-lime-400 rounded-full"></div>
+                  </div>
                   <input
                     type="text"
                     value={bookingData.pickupLocation}
                     onChange={(e) => setBookingData((prev) => ({ ...prev, pickupLocation: e.target.value }))}
-                    className="w-full p-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-lime-400 bg-gray-900 text-lime-400"
-                    placeholder="Enter pickup location"
+                    className="w-full py-3 px-10 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
                   />
-                </Autocomplete>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Drop-off Location</label>
-                <Autocomplete
-                  onLoad={(autocomplete) => setDropoffAutocomplete(autocomplete)}
-                  onPlaceChanged={() => onPlaceChanged("dropoff")}
-                  options={{
-                    bounds: COLOMBO_BOUNDS,
-                    strictBounds: false,
-                    types: ["geocode"],
-                    componentRestrictions: { country: "lk" },
-                  }}
-                >
+                </div>
+              </Autocomplete>
+            </div>
+            <div>
+              <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Destination</label>
+              <Autocomplete
+                onLoad={(autocomplete) => setDropoffAutocomplete(autocomplete)}
+                onPlaceChanged={() => onPlaceChanged("dropoff")}
+                options={{ bounds: COLOMBO_BOUNDS, componentRestrictions: { country: "lk" } }}
+              >
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <div className="w-3 h-3 bg-lime-400 rounded-full ring-4 ring-lime-400 ring-opacity-30"></div>
+                  </div>
                   <input
                     type="text"
                     value={bookingData.dropLocation}
                     onChange={(e) => setBookingData((prev) => ({ ...prev, dropLocation: e.target.value }))}
-                    className="w-full p-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-lime-400 bg-gray-900 text-lime-400"
-                    placeholder="Enter drop-off location"
-                  />
-                </Autocomplete>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Pickup Date (Sri Lanka Time)</label>
-                  <DatePicker
-                    selected={bookingData.pickupDate}
-                    onChange={(date) => setBookingData((prev) => ({ ...prev, pickupDate: date }))}
-                    dateFormat="yyyy-MM-dd"
-                    minDate={getSriLankanTime()}
-                    className="w-full p-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-lime-400 bg-gray-900 text-lime-400"
+                    className="w-full py-3 px-10 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">Pickup Time (Sri Lanka Time)</label>
-                  <div className="flex space-x-2">
-                    <select
-                      value={bookingData.pickupTime.hours}
-                      onChange={(e) =>
-                        setBookingData((prev) => ({
-                          ...prev,
-                          pickupTime: { ...prev.pickupTime, hours: e.target.value },
-                        }))
-                      }
-                      className="w-full p-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-lime-400 bg-gray-900 text-lime-400"
-                    >
-                      {Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0")).map((hour) => (
-                        <option key={hour} value={hour}>{hour}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={bookingData.pickupTime.minutes}
-                      onChange={(e) =>
-                        setBookingData((prev) => ({
-                          ...prev,
-                          pickupTime: { ...prev.pickupTime, minutes: e.target.value },
-                        }))
-                      }
-                      className="w-full p-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-lime-400 bg-gray-900 text-lime-400"
-                    >
-                      {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0")).map((minute) => (
-                        <option key={minute} value={minute}>{minute}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="driverRequired"
-                  checked={bookingData.driverRequired}
-                  onChange={(e) => setBookingData((prev) => ({ ...prev, driverRequired: e.target.checked }))}
-                  className="h-5 w-5 text-lime-400 focus:ring-lime-400 border-gray-700 rounded"
-                />
-                <label htmlFor="driverRequired" className="ml-2 text-sm text-gray-400">
-                  I need a driver (additional $30 fee)
-                </label>
+              </Autocomplete>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Journey Date</label>
+              <DatePicker
+                selected={bookingData.pickupDate}
+                onChange={(date) => setBookingData((prev) => ({ ...prev, pickupDate: date }))}
+                dateFormat="yyyy-MM-dd"
+                minDate={getSriLankanTime()}
+                className="w-full py-3 px-4 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
+              />
+            </div>
+            <div>
+              <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Departure Time</label>
+              <div className="grid grid-cols-2 gap-4">
+                <select
+                  value={bookingData.pickupTime.hours}
+                  onChange={(e) =>
+                    setBookingData((prev) => ({
+                      ...prev,
+                      pickupTime: { ...prev.pickupTime, hours: e.target.value },
+                    }))
+                  }
+                  className="w-full py-3 px-4 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
+                >
+                  {Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0")).map((hour) => (
+                    <option key={hour} value={hour}>{hour}</option>
+                  ))}
+                </select>
+                <select
+                  value={bookingData.pickupTime.minutes}
+                  onChange={(e) =>
+                    setBookingData((prev) => ({
+                      ...prev,
+                      pickupTime: { ...prev.pickupTime, minutes: e.target.value },
+                    }))
+                  }
+                  className="w-full py-3 px-4 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
+                >
+                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((min) => (
+                    <option key={min} value={min}>{min}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
-            <h4 className="font-bold text-lg mb-4 text-lime-400">Route Preview</h4>
+          <div className="bg-gray-900 p-4 rounded border-2 border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <label className="relative inline-flex items-center mr-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="driverRequired"
+                    checked={bookingData.driverRequired}
+                    onChange={(e) => setBookingData((prev) => ({ 
+                      ...prev, 
+                      driverRequired: e.target.checked 
+                    }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-14 h-8 bg-gray-700 rounded-full peer-checked:bg-lime-400 transition-colors duration-200 ease-in-out"></div>
+                  <div className="absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-6"></div>
+                </label>
+                <label 
+                  htmlFor="driverRequired" 
+                  className="text-lg cursor-pointer select-none"
+                >
+                  Request a personal driver
+                </label>
+              </div>
+              <div className="text-lime-400 font-bold">+ LKR 750</div>
+            </div>
+            <p className="mt-2 text-sm text-gray-400">Includes local expertise and assistance</p>
+          </div>
+          <div className="bg-gray-800 rounded border-2 border-gray-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+              <h3 className="font-bold text-lime-400">Journey Map</h3>
+              <span className="text-sm text-gray-400">{fare.distance.toFixed(1)} km total distance</span>
+            </div>
             <GoogleMap
-              mapContainerClassName="h-72 w-full rounded-lg shadow-md"
+              mapContainerClassName="h-52 w-full"
               center={{ lat: bookingData.pickupCoords[0], lng: bookingData.pickupCoords[1] }}
               zoom={10}
               onLoad={(map) => (mapRef.current = map)}
@@ -428,143 +418,113 @@ const Booking = () => {
             </GoogleMap>
           </div>
         </div>
-        <div>
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg sticky top-6">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold text-lg text-lime-400">Booking Summary</h4>
-              <button
-                onClick={handleChangeVehicle}
-                className="text-sm text-lime-400 hover:text-lime-300 font-medium"
-              >
-                Change Vehicle
-              </button>
+      </div>
+      <div className="bg-gray-800 rounded-lg border-2 border-lime-400 overflow-hidden h-fit">
+        <div className="p-6 border-b border-gray-700">
+          <h2 className="text-2xl font-bold text-lime-400">Journey Summary</h2>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center p-4 bg-gray-900 rounded border-2 border-gray-700 mb-6">
+            <div className="w-12 h-12 bg-lime-400 rounded-lg flex items-center justify-center text-gray-900 text-xl font-bold mr-4">
+              {selectedCar?.type.slice(0, 3).toUpperCase()}
             </div>
-            <div className="mb-4">
-              <div className="flex items-center mb-3">
-                <div className="bg-lime-400 p-2 rounded">
-                  <CarIcon className="h-5 w-5 text-gray-900" />
-                </div>
-                <span className="ml-2 font-medium text-lime-400">
-                  {selectedCar?.brand} {selectedCar?.model}
-                </span>
-              </div>
-              <div className="bg-gray-900 p-4 rounded-lg">
-                <div className="text-sm text-gray-400 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Car Type:</span>
-                    <span className="font-medium">{selectedCar?.type}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Seats:</span>
-                    <span className="font-medium">{selectedCar?.seats}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Distance:</span>
-                    <span className="font-medium">{fare.distance.toFixed(2)} km</span>
-                  </div>
-                </div>
+            <div>
+              <div className="text-lime-400 font-bold">{selectedCar?.brand} {selectedCar?.model}</div>
+              <div className="text-sm text-gray-400 flex space-x-4">
+                <span>{selectedCar?.seats} seats</span>
+                <span>A/C</span>
               </div>
             </div>
-            <div className="border-t border-gray-700 pt-4 mt-6">
-              <h5 className="font-medium text-lime-400 mb-3">Fare Breakdown</h5>
-              <div className="text-sm space-y-2">
-                <div className="flex justify-between">
-                  <span>Base Fare</span>
-                  <span>${fare.baseFare.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Distance Fare ({fare.distance.toFixed(2)} km)</span>
-                  <span>${fare.distanceFare.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax</span>
-                  <span>${fare.tax.toFixed(2)}</span>
-                </div>
-                {bookingData.driverRequired && (
-                  <div className="flex justify-between">
-                    <span>Driver Fee</span>
-                    <span>$30.00</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-700">
-                  <span>Total</span>
-                  <span className="text-lime-400">${fare.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-6">
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className={`w-full px-4 py-3 bg-lime-400 text-gray-900 font-bold rounded-lg transition shadow-lg ${
-                  loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-lime-300'
-                }`}
-              >
-                {loading ? 'Processing...' : 'Confirm Booking'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mt-3 text-center">
-              By confirming, you agree to our terms of service and cancellation policy
-            </p>
           </div>
+          <h3 className="text-lg font-bold text-lime-400 mb-4">Pricing Details</h3>
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between border-b border-gray-700 pb-2">
+              <span className="text-gray-400">Base Rate</span>
+              <span>LKR {fare.baseFare.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-b border-gray-700 pb-2">
+              <span className="text-gray-400">Distance ({fare.distance.toFixed(1)} km)</span>
+              <span>LKR {fare.distanceFare.toFixed(2)}</span>
+            </div>
+            {bookingData.driverRequired && (
+              <div className="flex justify-between border-b border-gray-700 pb-2">
+                <span className="text-gray-400">Tour Guide</span>
+                <span>LKR {fare.driverFee.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-b border-gray-700 pb-2">
+              <span className="text-gray-400">Tax (30%)</span>
+              <span>LKR {fare.tax.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between pt-3">
+              <span className="text-xl font-bold">Total</span>
+              <span className="text-xl font-bold text-lime-400">LKR {fare.total.toFixed(2)}</span>
+            </div>
+          </div>
+          <button
+            onClick={handleChangeVehicle}
+            className="w-full py-2 bg-gray-700 text-lime-400 font-bold rounded text-sm mb-4 hover:bg-gray-600 transition"
+          >
+            Change Vehicle
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-4 bg-lime-400 hover:bg-lime-500 text-gray-900 font-bold rounded text-lg transition"
+          >
+            {loading ? 'Processing...' : 'BOOK NOW'}
+          </button>
+          <p className="text-center text-gray-500 text-xs mt-4">
+            Free cancellation up to 24 hours before departure
+          </p>
         </div>
       </div>
     </div>
   );
 
   const renderConfirmation = () => (
-    <div className="text-center py-12">
-      <div className="inline-flex items-center justify-center w-24 h-24 bg-lime-400 rounded-full mb-6">
-        <CheckIcon className="h-12 w-12 text-gray-900" />
-      </div>
-      <h3 className="text-3xl font-bold text-lime-400 mb-4">Booking Confirmed!</h3>
-      <p className="text-lg text-gray-400 mb-8 max-w-md mx-auto">
-        Your booking has been successfully processed. A confirmation has been sent to your email.
-      </p>
-      <div className="bg-gray-800 p-6 rounded-xl shadow-lg max-w-lg mx-auto mb-8">
-        <h4 className="font-bold text-lg mb-4 text-lime-400">Booking Details</h4>
+    <div className="bg-gray-800 rounded-lg border-2 border-lime-400 p-6 text-center">
+      <h2 className="text-2xl font-bold text-lime-400 mb-4">Booking Confirmed!</h2>
+      <p className="text-gray-400 mb-6">Your booking has been successfully processed.</p>
+      <div className="bg-gray-900 p-4 rounded border-2 border-gray-700 mb-6">
         <div className="grid grid-cols-2 gap-4 text-left">
           <div>
             <p className="text-sm text-gray-400">Vehicle</p>
-            <p className="font-medium">{selectedCar?.brand} {selectedCar?.model}</p>
+            <p className="font-medium text-lime-400">{selectedCar?.brand} {selectedCar?.model}</p>
           </div>
           <div>
             <p className="text-sm text-gray-400">Date & Time</p>
-            <p className="font-medium">
-              {bookingData.pickupDate.toLocaleDateString("en-US", { timeZone: "Asia/Colombo" })} {bookingData.pickupTime.hours}:{bookingData.pickupTime.minutes}
+            <p className="font-medium text-lime-400">
+              {bookingData.pickupDate.toLocaleDateString("en-US")} {bookingData.pickupTime.hours}:{bookingData.pickupTime.minutes}
             </p>
           </div>
           <div>
             <p className="text-sm text-gray-400">Pickup</p>
-            <p className="font-medium">{bookingData.pickupLocation}</p>
+            <p className="font-medium text-lime-400">{bookingData.pickupLocation}</p>
           </div>
           <div>
             <p className="text-sm text-gray-400">Drop-off</p>
-            <p className="font-medium">{bookingData.dropLocation}</p>
+            <p className="font-medium text-lime-400">{bookingData.dropLocation}</p>
           </div>
           <div>
             <p className="text-sm text-gray-400">Driver</p>
-            <p className="font-medium">{bookingData.driverRequired ? 'Yes' : 'No'}</p>
+            <p className="font-medium text-lime-400">{bookingData.driverRequired ? 'Yes' : 'No'}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-400">Distance</p>
-            <p className="font-medium">{fare.distance.toFixed(2)} km</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-400">Total Amount</p>
-            <p className="font-medium text-lime-400">${fare.total.toFixed(2)}</p>
+            <p className="text-sm text-gray-400">Total</p>
+            <p className="font-medium text-lime-400">LKR {fare.total.toFixed(2)}</p>
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="flex justify-center gap-4">
         <button
-          className="px-6 py-3 bg-gray-900 text-lime-400 font-medium rounded-lg hover:bg-gray-800 transition shadow-lg"
+          className="px-6 py-3 bg-gray-700 text-lime-400 font-bold rounded hover:bg-gray-600 transition"
           onClick={() => navigate('/bookings')}
         >
           View My Bookings
         </button>
         <button
-          className="px-6 py-3 bg-lime-400 text-gray-900 font-medium rounded-lg hover:bg-lime-300 transition shadow-lg"
+          className="px-6 py-3 bg-lime-400 text-gray-900 font-bold rounded hover:bg-lime-500 transition"
           onClick={() => navigate('/')}
         >
           Return to Home
@@ -573,83 +533,22 @@ const Booking = () => {
     </div>
   );
 
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return renderVehicleSelection();
-      case 2:
-        return renderBookingDetails();
-      case 3:
-        return renderConfirmation();
-      default:
-        return renderVehicleSelection();
-    }
-  };
-
   return (
-    <LoadScript
-      googleMapsApiKey={GOOGLE_MAPS_API_KEY}
-      libraries={libraries}
-      loadingElement={<div className="text-center py-10 text-lime-400">Loading Google Maps...</div>}
-      onError={() => setError("Failed to load Google Maps. Please check your network or disable ad blockers.")}
-    >
-      <div className="bg-gray-900 min-h-screen w-full">
-        <div className="bg-gray-800 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-800 to-gray-700 opacity-90"></div>
-          <div className="absolute inset-0">
-            <div className="h-full w-full bg-[url('https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-20"></div>
-          </div>
-          <div className="container mx-auto px-4 py-16 relative z-10">
-            <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-bold text-lime-400 mb-4">Book Your Ride</h1>
-              <div className="h-1 w-24 bg-lime-400 mx-auto mb-6"></div>
-              <p className="text-lg text-gray-400 mb-4">
-                Easy, fast, and reliable cab booking for your journey across Colombo
-              </p>
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 1440 120"
-              className="w-full"
-            >
-              <path
-                fill="#1F2937"
-                fillOpacity="1"
-                d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,42.7C1120,32,1280,32,1360,32L1440,32L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"
-              ></path>
-            </svg>
-          </div>
-        </div>
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="relative">
-              <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-1 bg-gray-700">
-                <div
-                  className="h-full bg-lime-400 transition-all"
-                  style={{ width: `${(step - 1) * 50}%` }}
-                ></div>
-              </div>
-              <div className="relative z-10 flex justify-between">
-                <div className={`flex flex-col items-center ${step >= 1 ? 'text-lime-400' : 'text-gray-400'}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-colors ${step >= 1 ? 'bg-lime-400 text-gray-900' : 'bg-gray-700'}`}>1</div>
-                  <span className="text-sm font-medium">Select Vehicle</span>
-                </div>
-                <div className={`flex flex-col items-center ${step >= 2 ? 'text-lime-400' : 'text-gray-400'}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-colors ${step >= 2 ? 'bg-lime-400 text-gray-900' : 'bg-gray-700'}`}>2</div>
-                  <span className="text-sm font-medium">Booking Details</span>
-                </div>
-                <div className={`flex flex-col items-center ${step >= 3 ? 'text-lime-400' : 'text-gray-400'}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-colors ${step >= 3 ? 'bg-lime-400 text-gray-900' : 'bg-gray-700'}`}>3</div>
-                  <span className="text-sm font-medium">Confirmation</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="container mx-auto px-4 py-8 pb-20">
-          <div className="max-w-5xl mx-auto">{renderStep()}</div>
+    <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={libraries}>
+      <div className="bg-gray-900 text-white min-h-screen font-sans">
+        <div className="max-w-6xl mx-auto p-4">
+          <header className="py-6 mb-8">
+            <h1 className="text-center text-4xl font-black tracking-tighter">
+              <span className="text-white italic">MEGA</span>
+              <span className="text-white italic">CITY</span>
+              <span className="text-lime-400 italic"> CABS</span>
+            </h1>
+            <p className="text-center text-gray-400 mt-2">Premium Sri Lankan Transportation</p>
+          </header>
+          {step === 1 && renderVehicleSelection()}
+          {step === 2 && renderBookingDetails()}
+          {step === 3 && renderConfirmation()}
+          {error && <div className="mt-4 p-4 bg-red-900 text-red-400 rounded">{error}</div>}
         </div>
       </div>
     </LoadScript>

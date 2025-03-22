@@ -1,7 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Facebook, Instagram, Twitter, Phone, Mail, MapPin, Clock } from 'lucide-react';
 
 const Footer = () => {
+  const [email, setEmail] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState('');
+
+  const handleSubscribe = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setSubscriptionStatus('Subscribing...');
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setSubscriptionStatus('Successfully subscribed!');
+      setEmail('');
+      setTimeout(() => setSubscriptionStatus(''), 3000); // Clear message after 3 seconds
+    } catch (error) {
+      setSubscriptionStatus('Subscription failed. Please try again.');
+      setTimeout(() => setSubscriptionStatus(''), 3000);
+    }
+  };
+
   return (
     <footer className="bg-gray-900 text-gray-300">
       {/* Main Footer Content */}
@@ -9,7 +29,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Company Info */}
           <div className="space-y-4">
-          <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold">
               <span className="text-white italic">MEGA</span>
               <span className="text-white italic">CITY</span>
               <span className="text-lime-400 italic"> CABS</span>
@@ -67,16 +87,27 @@ const Footer = () => {
           <div className="space-y-4">
             <h4 className="text-lg font-semibold text-white">Newsletter</h4>
             <p className="text-gray-400">Subscribe to receive updates and special offers.</p>
-            <div className="space-y-2">
+            <form onSubmit={handleSubscribe} className="space-y-2">
               <input
                 type="email"
                 placeholder="Your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-lime-400"
               />
-              <button className="w-full bg-lime-400 text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-lime-300 transition-colors">
+              <button 
+                type="submit"
+                className="w-full bg-lime-400 text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-lime-300 transition-colors"
+              >
                 Subscribe
               </button>
-            </div>
+            </form>
+            {subscriptionStatus && (
+              <p className={`text-sm ${subscriptionStatus.includes('Success') ? 'text-lime-400' : 'text-red-400'}`}>
+                {subscriptionStatus}
+              </p>
+            )}
           </div>
         </div>
       </div>
