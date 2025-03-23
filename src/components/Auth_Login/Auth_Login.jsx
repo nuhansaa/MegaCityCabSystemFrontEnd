@@ -37,7 +37,7 @@ const LoginPage = () => {
           navigate('/admin');
           break;
         case 'ROLE_CUSTOMER':
-          navigate('/BookingForm');
+          navigate('/');
           break;
         case 'ROLE_DRIVER':
           navigate('/DriverProfile');

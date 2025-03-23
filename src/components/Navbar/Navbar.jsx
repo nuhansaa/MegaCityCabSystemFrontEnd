@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Menu, X, User, ChevronDown } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../util/AuthContex"; // Adjust the path as necessary
+import { useAuth } from "../../util/AuthContex"; // Keeping the original import path
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth(); // Get user and logout from AuthContext
+  const { user, logout } = useAuth();
 
   const navItems = [
     { label: "Home", href: "/" },
@@ -16,6 +18,20 @@ const Navbar = () => {
     { label: "About Us", href: "/AboutUs" },
     { label: "Contact", href: "/Contact" },
   ];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const NavLink = ({ to, children }) => {
     const isActive = location.pathname === to;
@@ -32,8 +48,9 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
-    logout(); // Call the logout function from AuthContext
-    navigate("/"); // Redirect to the home page after logout
+    logout();
+    setDropdownOpen(false);
+    navigate("/");
   };
 
   return (
@@ -62,34 +79,58 @@ const Navbar = () => {
               </button>
             </Link>
             {user ? (
-              <div className="relative group">
-                <button className="flex items-center space-x-3 focus:outline-none group">
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  className="flex items-center space-x-3 focus:outline-none"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                >
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-lime-400 text-gray-900 flex items-center justify-center border-2 border-lime-400 group-hover:border-lime-300 transition-colors shadow-md">
+                    <div className="w-10 h-10 rounded-full bg-lime-400 text-gray-900 flex items-center justify-center border-2 border-lime-400 hover:border-lime-300 transition-colors shadow-md">
                       {user.username ? user.username.charAt(0).toUpperCase() : "U"}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-lime-400 absolute -right-6 top-1/2 -translate-y-1/2" />
+                    <ChevronDown className={`w-4 h-4 text-lime-400 absolute -right-6 top-1/2 -translate-y-1/2 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
                   </div>
                 </button>
-                <div className="absolute right-0 mt-3 w-56 bg-gray-800 rounded-lg shadow-xl py-2 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 border border-gray-700">
-                  <div className="px-4 py-3 text-sm font-medium text-lime-400 border-b border-gray-700 capitalize">
-                    {user.role?.replace("ROLE_", "").toLowerCase()}
-                  </div>
-                  {user.role === "ROLE_DRIVER" && (
-                    <Link
-                      to="/driver-dashboard"
-                      className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-3 w-56 bg-gray-800 rounded-lg shadow-xl py-2 border border-gray-700 z-50">
+                    <div className="px-4 py-3 text-sm font-medium text-lime-400 border-b border-gray-700 capitalize">
+                      {user.role?.replace("ROLE_", "").toLowerCase()}
+                    </div>
+                    {user.role === "ROLE_DRIVER" && (
+                      <Link
+                        to="/driver-dashboard"
+                        className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                    )}
+                    {user.role === "ROLE_CUSTOMER" && (
+                      <Link
+                        to="/CustomerProfile"
+                        className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Profile
+                      </Link>
+                    )}
+                    {user.role === "ROLE_ADMIN" && (
+                      <Link
+                        to="/admin"
+                        className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Admin Dashboard
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2.5 text-sm text-lime-400 hover:bg-gray-700 transition-colors"
                     >
-                      Dashboard
-                    </Link>
-                  )}
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2.5 text-sm text-lime-400 hover:bg-gray-700 transition-colors"
-                  >
-                    Logout
-                  </button>
-                </div>
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <Link to="/AuthLogin">
@@ -117,38 +158,67 @@ const Navbar = () => {
         <div className="md:hidden bg-gray-800">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             {navItems.map((item) => (
-              <NavLink key={item.label} to={item.href}>
+              <Link
+                key={item.label}
+                to={item.href}
+                className={`block text-gray-300 hover:text-lime-400 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                  location.pathname === item.href ? "text-lime-400" : ""
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
                 {item.label}
-              </NavLink>
+              </Link>
             ))}
-            <Link to="/Cabs">
-              <button className="w-full bg-lime-400 text-gray-900 hover:bg-lime-300 px-6 py-2 rounded-md font-medium active:scale-95 transition-colors duration-200">
+            <Link to="/Cabs" onClick={() => setIsOpen(false)}>
+              <button className="w-full bg-lime-400 text-gray-900 hover:bg-lime-300 px-6 py-2 rounded-md font-medium active:scale-95 transition-colors duration-200 my-2">
                 Book a Ride
               </button>
             </Link>
             {user ? (
-              <div className="space-y-2">
+              <div className="space-y-2 mt-4">
                 <div className="px-4 py-3 text-sm font-medium text-lime-400 border-b border-gray-700 capitalize">
                   {user.role?.replace("ROLE_", "").toLowerCase()}
                 </div>
                 {user.role === "ROLE_DRIVER" && (
                   <Link
-                    to="/driver-dashboard"
+                    to="/DriverProfile"
                     className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                    onClick={() => setIsOpen(false)}
                   >
                     Dashboard
                   </Link>
                 )}
+                {user.role === "ROLE_CUSTOMER" && (
+                  <Link
+                    to="/CustomerProfile"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-lime-400 hover:bg-gray-700 transition-colors"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                )}
+                {user.role === "ROLE_ADMIN" && (
+                  <Link
+                    to="/AdminDashboard"
+                    className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Admin Dashboard
+                  </Link>
+                )}
                 <button
-                  onClick={handleLogout}
+                  onClick={() => {
+                    handleLogout();
+                    setIsOpen(false);
+                  }}
                   className="block w-full text-left px-4 py-2.5 text-sm text-lime-400 hover:bg-gray-700 transition-colors"
                 >
                   Logout
                 </button>
               </div>
             ) : (
-              <Link to="/AuthLogin">
-                <button className="w-full bg-transparent border border-lime-400 text-lime-400 hover:bg-lime-400 hover:text-gray-900 px-6 py-2 rounded-md font-medium flex items-center justify-center space-x-2 active:scale-95 transition-colors duration-200 hover:shadow-[0_0_10px_rgba(132,204,22,0.8)]">
+              <Link to="/AuthLogin" onClick={() => setIsOpen(false)}>
+                <button className="w-full bg-transparent border border-lime-400 text-lime-400 hover:bg-lime-400 hover:text-gray-900 px-6 py-2 rounded-md font-medium flex items-center justify-center space-x-2 active:scale-95 transition-colors duration-200 hover:shadow-[0_0_10px_rgba(132,204,22,0.8)] my-2">
                   <User className="h-4 w-4" />
                   <span>Login</span>
                 </button>

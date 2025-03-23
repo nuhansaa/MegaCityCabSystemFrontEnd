@@ -36,7 +36,7 @@ const CustomerProfile = () => {
     customerId: "",
     customerName: "",
     customerAddress: "",
-    customerNIC: "",
+    customerNic: "",
     customerPhone: "",
     email: "",
     role: "CUSTOMER",
@@ -180,7 +180,7 @@ const CustomerProfile = () => {
     }
 
     try {
-      await axios.post(
+      const response = await axios.post(
         `${BOOKINGS_API_URL}/${cancelBookingId}/cancel`,
         { reason: cancellationReason },
         {
@@ -191,8 +191,12 @@ const CustomerProfile = () => {
         }
       );
 
-      await fetchBookings();
-      closeCancelDialog();
+      if (response.status === 200) {
+        await fetchBookings(); // Refresh the bookings list
+        closeCancelDialog();
+      } else {
+        throw new Error("Failed to cancel booking.");
+      }
     } catch (err) {
       console.error("Error cancelling booking:", err);
       setError(err.response?.data?.message || "Failed to cancel booking. Please try again.");
@@ -237,10 +241,13 @@ const CustomerProfile = () => {
 
   return (
     <div className="w-full min-h-screen bg-gray-900 text-white">
+      {/* Header */}
       <header className="border-b border-gray-800 p-4">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold"><span className="text-white">MEGACITY</span>
-          <span className="text-lime-400"> CABS</span></h1>
+          <h1 className="text-2xl font-bold">
+            <span className="text-white">MEGACITY</span>
+            <span className="text-lime-400"> CABS</span>
+          </h1>
           <div className="flex items-center gap-3">
             <span className="text-gray-300">{getFullName()}</span>
             <div className="w-10 h-10 rounded-full bg-lime-400 text-gray-900 flex items-center justify-center font-bold">
@@ -249,6 +256,8 @@ const CustomerProfile = () => {
           </div>
         </div>
       </header>
+
+      {/* Main Content */}
       <main className="container mx-auto p-4">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar Navigation */}
@@ -257,18 +266,22 @@ const CustomerProfile = () => {
               <nav>
                 <ul className="space-y-2">
                   <li>
-                    <button 
-                      className={`w-full text-left p-3 rounded-md flex items-center gap-3 ${activeTab === 'profile' ? 'bg-lime-400 text-gray-900' : 'hover:bg-gray-700 text-lime-400'}`}
-                      onClick={() => setActiveTab('profile')}
+                    <button
+                      className={`w-full text-left p-3 rounded-md flex items-center gap-3 ${
+                        activeTab === "profile" ? "bg-lime-400 text-gray-900" : "hover:bg-gray-700 text-lime-400"
+                      }`}
+                      onClick={() => setActiveTab("profile")}
                     >
                       <UserIcon size={20} />
                       <span>Profile</span>
                     </button>
                   </li>
                   <li>
-                    <button 
-                      className={`w-full text-left p-3 rounded-md flex items-center gap-3 ${activeTab === 'bookings' ? 'bg-lime-400 text-gray-900' : 'hover:bg-gray-700 text-lime-400'}`}
-                      onClick={() => setActiveTab('bookings')}
+                    <button
+                      className={`w-full text-left p-3 rounded-md flex items-center gap-3 ${
+                        activeTab === "bookings" ? "bg-lime-400 text-gray-900" : "hover:bg-gray-700 text-lime-400"
+                      }`}
+                      onClick={() => setActiveTab("bookings")}
                     >
                       <CalendarIcon size={20} />
                       <span>My Bookings</span>
@@ -278,7 +291,8 @@ const CustomerProfile = () => {
               </nav>
             </div>
           </div>
-          {/* Main Content */}
+
+          {/* Profile or Bookings Content */}
           <div className="md:w-3/4 bg-gray-800/50 rounded-lg p-6">
             {error && (
               <div className="mb-4 p-4 bg-red-500/20 text-red-300 rounded-md flex items-center">
@@ -286,39 +300,52 @@ const CustomerProfile = () => {
                 {error}
               </div>
             )}
+
             {activeTab === "profile" && (
               <div className="px-4 py-5 sm:p-6">
                 {!isEditing ? (
-                  <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                    <div className="sm:col-span-1">
-                      <dt className="text-sm font-medium text-gray-400 flex items-center">
-                        <MailIcon size={16} className="mr-2 text-lime-400" />
-                        Email Address
-                      </dt>
-                      <dd className="mt-1 text-lg text-lime-400">{customer.email}</dd>
+                  <div>
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                      <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-400 flex items-center">
+                          <MailIcon size={16} className="mr-2 text-lime-400" />
+                          Email Address
+                        </dt>
+                        <dd className="mt-1 text-lg text-lime-400">{customer.email}</dd>
+                      </div>
+                      <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-400 flex items-center">
+                          <PhoneIcon size={16} className="mr-2 text-lime-400" />
+                          Phone Number
+                        </dt>
+                        <dd className="mt-1 text-lg text-lime-400">{customer.customerPhone}</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="text-sm font-medium text-gray-400 flex items-center">
+                          <MapPinIcon size={16} className="mr-2 text-lime-400" />
+                          Home Address
+                        </dt>
+                        <dd className="mt-1 text-lg text-lime-400">{customer.customerAddress}</dd>
+                      </div>
+                      <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-400 flex items-center">
+                          <UserIcon size={16} className="mr-2 text-lime-400" />
+                          NIC Number
+                        </dt>
+                        <dd className="mt-1 text-lg text-lime-400">{customer.customerNic}</dd>
+                      </div>
+                    </dl>
+                    <div className="mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="px-4 py-2 bg-lime-400 text-gray-900 rounded-md font-medium flex items-center"
+                      >
+                        <Edit size={18} className="mr-2" />
+                        Edit Profile
+                      </button>
                     </div>
-                    <div className="sm:col-span-1">
-                      <dt className="text-sm font-medium text-gray-400 flex items-center">
-                        <PhoneIcon size={16} className="mr-2 text-lime-400" />
-                        Phone Number
-                      </dt>
-                      <dd className="mt-1 text-lg text-lime-400">{customer.customerPhone}</dd>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <dt className="text-sm font-medium text-gray-400 flex items-center">
-                        <MapPinIcon size={16} className="mr-2 text-lime-400" />
-                        Home Address
-                      </dt>
-                      <dd className="mt-1 text-lg text-lime-400">{customer.customerAddress}</dd>
-                    </div>
-                    <div className="sm:col-span-1">
-                      <dt className="text-sm font-medium text-gray-400 flex items-center">
-                        <UserIcon size={16} className="mr-2 text-lime-400" />
-                        NIC Number
-                      </dt>
-                      <dd className="mt-1 text-lg text-lime-400">{customer.customerNIC}</dd>
-                    </div>
-                  </dl>
+                  </div>
                 ) : (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
@@ -396,15 +423,15 @@ const CustomerProfile = () => {
                       </div>
 
                       <div className="sm:col-span-3">
-                        <label htmlFor="customerNIC" className="block text-sm font-medium text-gray-400">
+                        <label htmlFor="customerNic" className="block text-sm font-medium text-gray-400">
                           NIC Number
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <input
                             type="text"
-                            name="customerNIC"
-                            id="customerNIC"
-                            value={editedCustomer.customerNIC || ""}
+                            name="customerNic"
+                            id="customerNic"
+                            value={editedCustomer.customerNic || ""}
                             onChange={handleInputChange}
                             className="bg-gray-600 border border-gray-500 text-white rounded-lg focus:ring-lime-400 focus:border-lime-400 block w-full p-2.5"
                           />
@@ -482,7 +509,7 @@ const CustomerProfile = () => {
                                 <span>{booking.destination}</span>
                               </div>
                               <div className="text-gray-300 text-sm">
-                                Driver: {booking.driver} • {booking.carModel}
+                                Driver: {booking.driverDetails?.driverName || "Not Assigned"} • {booking.carModel}
                               </div>
                             </div>
                             <div className="text-right flex flex-col items-end">
