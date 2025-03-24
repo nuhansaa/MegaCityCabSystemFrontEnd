@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Clock,
   ArrowRight,
-  DollarSign,
   Calendar as CalendarIcon,
   Clock as ClockIcon,
   MapPin as MapPinIcon,
@@ -22,9 +21,6 @@ import {
   Phone as PhoneIcon,
   Mail as MailIcon,
   Save as SaveIcon,
-  Settings as SettingsIcon,
-  CreditCard as CreditCardIcon,
-  IdCard as IdCardIcon,
 } from "lucide-react";
 import axios from "axios";
 import { useAuth } from "../../util/AuthContex";
@@ -88,7 +84,7 @@ const CustomerProfile = () => {
         console.error("Error fetching customer data:", err);
         if (err.response?.status === 401) {
           setError("Session expired. Please log in again.");
-          logout(); // Log out if token is invalid
+          logout();
         } else {
           setError(
             err.response?.data?.message || err.message || "Failed to load profile data. Please try again."
@@ -117,7 +113,15 @@ const CustomerProfile = () => {
       });
 
       if (response.status === 200) {
-        setBookings(response.data || []);
+        const processedBookings = response.data.map(booking => ({
+          ...booking,
+          pickupDate: booking.pickupDate || booking.bookingDate,
+          driverDetails: booking.driverDetails || {
+            driverName: booking.driverId ? "Driver Assigned" : "Not Assigned",
+            driverPhone: booking.driverId ? "Available" : "Not Available"
+          }
+        }));
+        setBookings(processedBookings || []);
       } else {
         throw new Error(`Unexpected response status: ${response.status}`);
       }
@@ -192,7 +196,7 @@ const CustomerProfile = () => {
       );
 
       if (response.status === 200) {
-        await fetchBookings(); // Refresh the bookings list
+        await fetchBookings();
         closeCancelDialog();
       } else {
         throw new Error("Failed to cancel booking.");
@@ -219,20 +223,43 @@ const CustomerProfile = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toISOString().split("T")[0];
+    if (!dateString) return "Not specified";
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? "Invalid date" : date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return "Invalid date";
+    }
   };
 
-  const formatTime = (dateTimeString) => {
-    if (!dateTimeString) return "";
-    const date = new Date(dateTimeString);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
-
-  const formatFare = (fare, isEstimate = false) => {
-    if (!fare) return "";
-    return isEstimate ? `Estimated $${fare.toFixed(2)}` : `$${fare.toFixed(2)}`;
+  const formatTime = (timeString) => {
+    if (!timeString) return "Not specified";
+    try {
+      if (timeString.includes('T')) {
+        const date = new Date(timeString);
+        return isNaN(date.getTime()) ? "Invalid time" : date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours, 10));
+        date.setMinutes(parseInt(minutes, 10));
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+    } catch (e) {
+      return "Invalid time";
+    }
   };
 
   if (isLoading) {
@@ -509,11 +536,10 @@ const CustomerProfile = () => {
                                 <span>{booking.destination}</span>
                               </div>
                               <div className="text-gray-300 text-sm">
-                                Driver: {booking.driverDetails?.driverName || "Not Assigned"} • {booking.carModel}
+                                Driver: {booking.driverDetails?.driverName || (booking.driverId ? "Driver Assigned" : "Not Assigned")} 
                               </div>
                             </div>
-                            <div className="text-right flex flex-col items-end">
-                              <div className="text-2xl font-bold text-lime-400 mb-2">{formatFare(booking.totalAmount, booking.status === 'PENDING')}</div>
+                            <div className="text-right">
                               {booking.status === 'PENDING' && (
                                 <button 
                                   className="px-3 py-1 bg-red-600/80 text-white rounded-md text-sm flex items-center"
@@ -522,12 +548,6 @@ const CustomerProfile = () => {
                                   <TrashIcon size={16} className="mr-1" />
                                   Cancel
                                 </button>
-                              )}
-                              {booking.status === 'CANCELLED' && booking.refundAmount && (
-                                <div className="mt-2 text-sm text-green-600 flex items-center justify-end ml-auto">
-                                  <DollarSign size={16} className="mr-1" />
-                                  Refund: ${booking.refundAmount.toFixed(2)}
-                                </div>
                               )}
                             </div>
                           </div>
@@ -573,13 +593,6 @@ const CustomerProfile = () => {
                 {cancellationReasonError && (
                   <p className="mt-1 text-sm text-red-600">Please provide a cancellation reason</p>
                 )}
-              </div>
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">You will receive a 10% refund of your fare amount.</p>
-                  </div>
-                </div>
               </div>
               <div className="flex justify-end gap-3">
                 <button 

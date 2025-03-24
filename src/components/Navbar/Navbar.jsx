@@ -98,11 +98,11 @@ const Navbar = () => {
                     </div>
                     {user.role === "ROLE_DRIVER" && (
                       <Link
-                        to="/driver-dashboard"
+                        to="/DriverProfile"
                         className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
                         onClick={() => setDropdownOpen(false)}
                       >
-                        Dashboard
+                        My Profile
                       </Link>
                     )}
                     {user.role === "ROLE_CUSTOMER" && (
@@ -111,7 +111,7 @@ const Navbar = () => {
                         className="block px-4 py-2.5 text-sm text-gray-300 hover:text-lime-400 hover:bg-gray-700 transition-colors"
                         onClick={() => setDropdownOpen(false)}
                       >
-                        Profile
+                        My Profile
                       </Link>
                     )}
                     {user.role === "ROLE_ADMIN" && (
