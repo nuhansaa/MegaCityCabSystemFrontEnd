@@ -9,7 +9,6 @@ import {
 } from "@react-google-maps/api";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { CarIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../util/AuthContex"; // Adjust the import path
 
@@ -59,11 +58,11 @@ const Booking = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth(); // Use the AuthContext
-  const preselectedCar = location.state?.selectedCar || null;
+  const preselectedCar = location.state?.vehicle || null; // Changed from selectedCar to vehicle to match Cabs
   const preservedBookingData = location.state?.bookingData || null;
 
   const [bookingData, setBookingData] = useState({
-    customerId: user?.userId || "", // Use userId from AuthContext
+    customerId: user?.userId || "",
     carId: preselectedCar?.id || "",
     pickupDate: preservedBookingData?.pickupDate || getSriLankanTime(),
     pickupTime: preservedBookingData?.pickupTime || {
@@ -78,13 +77,12 @@ const Booking = () => {
     driverAssignmentMessage: "",
   });
 
-  const [availableCars, setAvailableCars] = useState([]);
   const [selectedCar, setSelectedCar] = useState(preselectedCar);
-  const [step, setStep] = useState(preselectedCar ? 2 : 1);
+  const [step, setStep] = useState(2); // Start directly at step 2
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fare, setFare] = useState({
-    baseFare: preselectedCar?.baseRate || 1500,
+    baseFare: preselectedCar?.baseRate || 1500, // Assume baseRate is passed or default to 1500
     distanceFare: 0,
     tax: 25,
     driverFee: preservedBookingData?.driverRequired ? 500 : 0,
@@ -100,40 +98,21 @@ const Booking = () => {
   const mapRef = useRef(null);
 
   useEffect(() => {
-    const fetchAvailableCars = async () => {
-      try {
-        const response = await fetch("http://localhost:8080/all/viewCars");
-        const data = await response.json();
-        const availableCars = data
-          .filter((car) => car.available === true)
-          .map((car) => ({
-            id: car.carId,
-            brand: car.carBrand,
-            model: car.carModel,
-            type: car.baseRate > 3000 ? "Luxury" : "Economy",
-            seats: car.capacity,
-            image: car.carImgUrl || "https://via.placeholder.com/300",
-            baseRate: car.baseRate || 1500,
-            licensePlate: car.licensePlate || "Unknown",
-          }));
-        setAvailableCars(availableCars);
-
-        if (preselectedCar) {
-          const fullCarDetails = availableCars.find((car) => car.id === preselectedCar.id);
-          if (fullCarDetails) {
-            setSelectedCar(fullCarDetails);
-            setFare((prev) => ({
-              ...prev,
-              baseFare: fullCarDetails.baseRate || 1500,
-            }));
-          }
-        }
-      } catch (error) {
-        setError("Unable to load available vehicles. Please try again later.");
-      }
-    };
-    fetchAvailableCars();
-  }, [preselectedCar]);
+    if (!preselectedCar) {
+      setError("No vehicle selected. Please select a vehicle from the fleet.");
+      navigate("/Cabs"); // Redirect to Cabs page if no car is selected
+    } else {
+      setSelectedCar({
+        id: preselectedCar.id,
+        brand: preselectedCar.name.split(" ")[0], // Extract brand from name
+        model: preselectedCar.name.split(" ").slice(1).join(" "), // Extract model
+        type: preselectedCar.type === "suv" || preselectedCar.type === "van" ? "car" : "Economy",
+        seats: preselectedCar.passengers,
+        image: preselectedCar.image || "https://via.placeholder.com/300",
+        baseRate: preselectedCar.baseRate || 1500, // Assume baseRate or default
+      });
+    }
+  }, [preselectedCar, navigate]);
 
   useEffect(() => {
     if (bookingData.pickupCoords && bookingData.dropCoords) {
@@ -258,15 +237,8 @@ const Booking = () => {
     }
   };
 
-  const handleCarSelect = (car) => {
-    setSelectedCar(car);
-    setBookingData((prev) => ({ ...prev, carId: car.id }));
-    setFare((prev) => ({ ...prev, baseFare: car.baseRate || 1500 }));
-    setStep(2);
-  };
-
   const checkAuthenticationAndProceed = () => {
-    if (!user) { // Check if user is authenticated via AuthContext
+    if (!user) {
       navigate("/AuthLogin", {
         state: { from: "booking", bookingData, selectedCar, fare },
       });
@@ -294,7 +266,7 @@ const Booking = () => {
     );
 
     const bookingPayload = {
-      customerId: user.userId, // Use userId from AuthContext
+      customerId: user.userId,
       carId: bookingData.carId,
       pickupDate: pickupDateTime.toISOString().slice(0, 10),
       pickupTime: `${bookingData.pickupTime.hours}:${bookingData.pickupTime.minutes}`,
@@ -310,7 +282,7 @@ const Booking = () => {
     };
 
     try {
-      const token = localStorage.getItem("jwtToken"); // Still needed for API calls
+      const token = localStorage.getItem("jwtToken");
       const response = await fetch("http://localhost:8080/auth/bookings/createbooking", {
         method: "POST",
         headers: {
@@ -353,61 +325,12 @@ const Booking = () => {
     });
   };
 
-  const renderVehicleSelection = () => (
-    <div className="bg-gray-800 rounded-lg border-2 border-lime-400 overflow-hidden">
-      <div className="p-6 border-b border-gray-700">
-        <h2 className="text-2xl font-bold text-lime-400 flex items-center">
-          <span className="mr-2">🚗</span> Choose Your Ride
-        </h2>
-      </div>
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {availableCars.length > 0 ? (
-          availableCars.map((car) => (
-            <div
-              key={car.id}
-              className={`bg-gray-900 p-4 rounded border-2 ${
-                selectedCar?.id === car.id ? 'border-lime-400' : 'border-gray-700'
-              } cursor-pointer`}
-              onClick={() => handleCarSelect(car)}
-            >
-              <img
-                src={car.image}
-                alt={`${car.brand} ${car.model}`}
-                className="w-full h-40 object-cover rounded mb-3"
-              />
-              <div className="text-lime-400 font-bold">{car.brand} {car.model}</div>
-              <div className="text-sm text-gray-400 flex space-x-4">
-                <span>{car.type}</span>
-                <span>{car.seats} seats</span>
-              </div>
-              <button
-                className={`w-full mt-3 py-2 rounded text-sm font-bold ${
-                  selectedCar?.id === car.id
-                    ? 'bg-lime-400 text-gray-900'
-                    : 'bg-gray-700 text-lime-400'
-                }`}
-              >
-                {selectedCar?.id === car.id ? 'SELECTED' : 'SELECT'}
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-3 text-center py-12">
-            <CarIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500">Loading available vehicles...</p>
-          </div>
-        )}
-      </div>
-      {error && <div className="p-6 text-red-400">{error}</div>}
-    </div>
-  );
-
   const renderBookingDetails = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 bg-gray-800 rounded-lg border-2 border-lime-400 overflow-hidden">
         <div className="p-6 border-b border-gray-700">
           <h2 className="text-2xl font-bold text-lime-400 flex items-center">
-            <span className="mr-2">🚗</span> Book Your Journey
+            <span className="mr-2"></span> Book Your Journey
           </h2>
         </div>
         <div className="p-6 space-y-6">
@@ -441,7 +364,7 @@ const Booking = () => {
               >
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <div className="w-3 h-3 bg-lime-400 rounded-full ring-4 ring-lime-400 ring-opacity-30"></div>
+                    <div className="w-3 h-3 bg-lime-400 rounded-full "></div>
                   </div>
                   <input
                     type="text"
@@ -454,16 +377,16 @@ const Booking = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-          <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Journey Date</label>
-          <DatePicker
-            selected={bookingData.pickupDate}
-            onChange={(date) => setBookingData((prev) => ({ ...prev, pickupDate: date }))}
-            dateFormat="yyyy-MM-dd"
-            minDate={new Date()} // Today's date is included
-            className="w-full py-3 px-4 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
-          />
-          </div>
+            <div>
+              <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Journey Date</label>
+              <DatePicker
+                selected={bookingData.pickupDate}
+                onChange={(date) => setBookingData((prev) => ({ ...prev, pickupDate: date }))}
+                dateFormat="yyyy-MM-dd"
+                minDate={new Date()}
+                className="w-full py-3 px-4 bg-gray-900 border-2 border-gray-700 focus:border-lime-400 rounded text-white"
+              />
+            </div>
             <div>
               <label className="uppercase text-xs tracking-wider text-gray-400 mb-2 block">Departure Time</label>
               <div className="grid grid-cols-2 gap-4">
@@ -701,7 +624,6 @@ const Booking = () => {
             </h1>
             <p className="text-center text-gray-400 mt-2">Premium Sri Lankan Transportation</p>
           </header>
-          {step === 1 && renderVehicleSelection()}
           {step === 2 && renderBookingDetails()}
           {step === 3 && renderConfirmation()}
           {error && <div className="mt-4 p-4 bg-red-900 text-red-400 rounded">{error}</div>}
