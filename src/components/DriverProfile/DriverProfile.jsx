@@ -47,14 +47,7 @@ const DriverProfile = () => {
     carId: "",
     available: true,
     role: "DRIVER",
-    carDetails: {
-      carLicensePlate: "",
-      carModel: "",
-      capacity: 4,
-      baseRate: 0.0,
-      driverRate: 0.0,
-      carImgUrl: ""
-    }
+    carDetails: null
   });
 
   const [bookings, setBookings] = useState([]);
@@ -68,7 +61,6 @@ const DriverProfile = () => {
   const [selectedBookingId, setSelectedBookingId] = useState(null);
 
   const API_BASE_URL = "http://localhost:8080/auth/driver";
-  const BOOKINGS_API_URL = "http://localhost:8080/auth/bookings";
   const CARS_API_URL = "http://localhost:8080/auth/cars";
   const token = localStorage.getItem("jwtToken");
 
@@ -82,6 +74,7 @@ const DriverProfile = () => {
           throw new Error("No driver ID or token found. Please log in again.");
         }
 
+        // Fetch driver data
         const driverResponse = await axios.get(`${API_BASE_URL}/getdriver/${driverId}`, {
           headers: {
             "Content-Type": "application/json",
@@ -91,19 +84,26 @@ const DriverProfile = () => {
 
         const driverData = driverResponse.data;
         
-        // If driver has a car, fetch car details
-        if (driverData.carId) {
-          const carResponse = await axios.get(`${CARS_API_URL}/${driverData.carId}`, {
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
-          });
-          driverData.carDetails = carResponse.data;
+        // Fetch car details only if driver has a car
+        if (driverData.hasOwnCar && driverData.carId) {
+          try {
+            const carResponse = await axios.get(`${CARS_API_URL}/${driverData.carId}`, {
+              headers: {
+                "Authorization": `Bearer ${token}`,
+              },
+            });
+            driverData.carDetails = carResponse.data;
+          } catch (carError) {
+            console.error("Error fetching car details:", carError);
+            driverData.carDetails = null;
+          }
+        } else {
+          driverData.carDetails = null;
         }
 
         setDriver(driverData);
         setEditedDriver(driverData);
-        await fetchBookings();
+        await fetchBookings(driverId);
         setIsLoading(false);
       } catch (err) {
         console.error("Error fetching driver data:", err);
@@ -125,9 +125,9 @@ const DriverProfile = () => {
     }
   }, [user, token, logout]);
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (driverId) => {
     try {
-      const response = await axios.get(`${BOOKINGS_API_URL}/getalldriverbookings`, {
+      const response = await axios.get(`${API_BASE_URL}/${driverId}/bookings`, {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
@@ -135,9 +135,13 @@ const DriverProfile = () => {
 
       if (response.status === 200) {
         const allBookings = response.data || [];
-        setBookings(allBookings);
+        const bookingsWithNames = allBookings.map(booking => ({
+          ...booking,
+          passengerName: booking.passengerName || "Unknown"
+        }));
+        setBookings(bookingsWithNames);
         
-        const activeBooking = allBookings.find(
+        const activeBooking = bookingsWithNames.find(
           booking => booking.status === 'ACCEPTED' || booking.status === 'IN_PROGRESS'
         );
         setCurrentBooking(activeBooking || null);
@@ -178,8 +182,8 @@ const DriverProfile = () => {
   const toggleAvailability = async () => {
     try {
       const response = await axios.put(
-        `${API_BASE_URL}/${driverId}/availability`,
-        { available: !driver.available },
+        `${API_BASE_URL}/${driver.driverId}/availability`,
+        { availability: !driver.available }, // Changed from "available" to "availability"
         {
           headers: {
             "Content-Type": "application/json",
@@ -187,8 +191,11 @@ const DriverProfile = () => {
           },
         }
       );
-
-      setDriver(response.data);
+  
+      setDriver(prev => ({
+        ...prev,
+        available: response.data.available
+      }));
     } catch (err) {
       console.error("Error updating availability:", err);
       setError(err.response?.data?.message || "Failed to update availability.");
@@ -208,7 +215,7 @@ const DriverProfile = () => {
   const handleAcceptBooking = async () => {
     try {
       const response = await axios.put(
-        `${BOOKINGS_API_URL}/${selectedBookingId}/accept`,
+        `${API_BASE_URL}/bookings/${selectedBookingId}/accept`,
         {},
         {
           headers: {
@@ -218,7 +225,7 @@ const DriverProfile = () => {
       );
 
       if (response.status === 200) {
-        await fetchBookings();
+        await fetchBookings(driver.driverId);
         closeConfirmDialog();
       }
     } catch (err) {
@@ -230,7 +237,7 @@ const DriverProfile = () => {
   const handleStartTrip = async (bookingId) => {
     try {
       const response = await axios.put(
-        `${BOOKINGS_API_URL}/${bookingId}/start`,
+        `${API_BASE_URL}/bookings/${bookingId}/start`,
         {},
         {
           headers: {
@@ -240,7 +247,7 @@ const DriverProfile = () => {
       );
 
       if (response.status === 200) {
-        await fetchBookings();
+        await fetchBookings(driver.driverId);
       }
     } catch (err) {
       console.error("Error starting trip:", err);
@@ -251,7 +258,7 @@ const DriverProfile = () => {
   const handleCompleteTrip = async (bookingId) => {
     try {
       const response = await axios.put(
-        `${BOOKINGS_API_URL}/${bookingId}/complete`,
+        `${API_BASE_URL}/bookings/${bookingId}/complete`,
         {},
         {
           headers: {
@@ -261,7 +268,7 @@ const DriverProfile = () => {
       );
 
       if (response.status === 200) {
-        await fetchBookings();
+        await fetchBookings(driver.driverId);
       }
     } catch (err) {
       console.error("Error completing trip:", err);
@@ -302,6 +309,7 @@ const DriverProfile = () => {
   };
 
   const renderStars = (rating) => {
+    if (!rating) return null;
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
@@ -445,10 +453,10 @@ const DriverProfile = () => {
                       </div>
                       <div>
                         <h2 className="text-2xl font-bold text-lime-400">{driver.driverName}</h2>
-                        <div className="flex items-center">
+                        {/* <div className="flex items-center">
                           {renderStars(driver.rating || 0)}
                           <span className="ml-2 text-gray-300">({(driver.rating || 0).toFixed(1)})</span>
-                        </div>
+                        </div> */}
                         <div className={`inline-flex px-2 py-0.5 rounded-full text-xs mt-1 ${
                           driver.available ? 'bg-green-100 text-green-800' : 'bg-gray-600 text-gray-300'
                         }`}>
@@ -501,7 +509,7 @@ const DriverProfile = () => {
                         onClick={toggleAvailability}
                         className={`px-4 py-2 rounded-md font-medium flex items-center ${
                           driver.available 
-                            ? 'bg-green-600 text-white' 
+                            ? 'bg-lime-600 text-white' 
                             : 'bg-gray-600 text-gray-300'
                         }`}
                       >
@@ -624,57 +632,83 @@ const DriverProfile = () => {
 
             {activeTab === "car" && (
               <div className="px-4 py-5 sm:p-6">
-                {driver.hasOwnCar && driver.carDetails ? (
-                  <div>
-                    <div className="flex items-center mb-6">
-                      {driver.carDetails.carImgUrl ? (
-                        <img 
-                          src={driver.carDetails.carImgUrl} 
-                          alt="Car" 
-                          className="w-16 h-16 object-cover rounded-md mr-4"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded-full bg-gray-700 text-lime-400 flex items-center justify-center mr-4">
-                          <Car size={32} />
+                {driver.hasOwnCar ? (
+                  driver.carDetails ? (
+                    <div>
+                      <div className="flex items-center mb-6">
+                        {driver.carDetails.carImgUrl ? (
+                          <img 
+                            src={driver.carDetails.carImgUrl} 
+                            alt="Car" 
+                            className="w-16 h-16 object-cover rounded-md mr-4"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-gray-700 text-lime-400 flex items-center justify-center mr-4">
+                            <Car size={32} />
+                          </div>
+                        )}
+                        <div>
+                          <h2 className="text-2xl font-bold text-lime-400">
+                            {driver.carDetails.carModel || "Vehicle Details"}
+                          </h2>
+                          <div className="text-gray-300">
+                            {driver.carDetails.carLicensePlate || "No license plate"}
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <h2 className="text-2xl font-bold text-lime-400">{driver.carDetails.carModel}</h2>
-                        <div className="text-gray-300">{driver.carDetails.carLicensePlate}</div>
                       </div>
-                    </div>
 
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                      <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-400 flex items-center">
-                          <CarIcon size={16} className="mr-2 text-lime-400" />
-                          Car Model
-                        </dt>
-                        <dd className="mt-1 text-lg text-lime-400">{driver.carDetails.carModel}</dd>
-                      </div>
-                      <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-400 flex items-center">
-                          <IdCardIcon size={16} className="mr-2 text-lime-400" />
-                          License Plate
-                        </dt>
-                        <dd className="mt-1 text-lg text-lime-400">{driver.carDetails.carLicensePlate}</dd>
-                      </div>
-                      <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-400 flex items-center">
-                          <Briefcase size={16} className="mr-2 text-lime-400" />
-                          Capacity
-                        </dt>
-                        <dd className="mt-1 text-lg text-lime-400">{driver.carDetails.capacity} passengers</dd>
-                      </div>
-                      <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-400 flex items-center">
-                          <DollarSign size={16} className="mr-2 text-lime-400" />
-                          Base Rate
-                        </dt>
-                        <dd className="mt-1 text-lg text-lime-400">${driver.carDetails.baseRate.toFixed(2)}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                      <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                        <div className="sm:col-span-1">
+                          <dt className="text-sm font-medium text-gray-400 flex items-center">
+                            <CarIcon size={16} className="mr-2 text-lime-400" />
+                            Car Model
+                          </dt>
+                          <dd className="mt-1 text-lg text-lime-400">
+                            {driver.carDetails.carModel || "N/A"}
+                          </dd>
+                        </div>
+                        <div className="sm:col-span-1">
+                          <dt className="text-sm font-medium text-gray-400 flex items-center">
+                            <IdCardIcon size={16} className="mr-2 text-lime-400" />
+                            License Plate
+                          </dt>
+                          <dd className="mt-1 text-lg text-lime-400">
+                            {driver.carDetails.carLicensePlate || "N/A"}
+                          </dd>
+                        </div>
+                        {driver.carDetails.capacity && (
+                          <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-400 flex items-center">
+                              <Briefcase size={16} className="mr-2 text-lime-400" />
+                              Capacity
+                            </dt>
+                            <dd className="mt-1 text-lg text-lime-400">
+                              {driver.carDetails.capacity} passengers
+                            </dd>
+                          </div>
+                        )}
+                        {driver.carDetails.baseRate && (
+                          <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-400 flex items-center">
+                              <DollarSign size={16} className="mr-2 text-lime-400" />
+                              Base Rate
+                            </dt>
+                            <dd className="mt-1 text-lg text-lime-400">
+                              ${driver.carDetails.baseRate.toFixed(2)}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CarIcon size={48} className="mx-auto text-gray-500 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-400">Vehicle details not available</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        We couldn't load your vehicle details.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="text-center py-8">
                     <CarIcon size={48} className="mx-auto text-gray-500 mb-4" />
