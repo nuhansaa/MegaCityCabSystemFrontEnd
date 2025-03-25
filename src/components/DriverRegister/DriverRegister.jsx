@@ -5,17 +5,17 @@ import axios from 'axios';
 const DriverRegister = () => {
   const [formData, setFormData] = useState({
     driverName: '',
-    hasOwnCar: false, // Changed from hasVehicle
-    driverVehicalLicense: '', // Changed from vehicleLicense
-    carBrand: '', // Not in Driver model, kept for car details
-    carModel: '', // Not in Driver model, kept for car details
-    carLicensePlate: '', // Not in Driver model, kept for car details
-    carImage: 'null', // Not in Driver model, kept for car details
-    capacity: '', // Not in Driver model, kept for car details
-    baseplate: '', // Not in Driver model, kept for car details (assumed as baseRate)
-    driverRate: '', // Not in Driver model, kept for car details
+    hasOwnCar: false,
+    driverVehicalLicense: '',
+    carBrand: '',
+    carModel: '',
+    carLicensePlate: '',
+    carImg: null, // Changed from 'null' to null for proper file handling
+    capacity: '',
+    baseRate: '', // Changed from baseplate to match Car model
+    driverRate: '',
     driverPhone: '',
-    email: '', // Changed from driverEmail
+    email: '',
     password: '',
   });
 
@@ -28,22 +28,21 @@ const DriverRegister = () => {
 
     const data = new FormData();
     data.append('driverName', formData.driverName);
-    data.append('email', formData.email); // Changed from driverEmail
-    data.append('driverVehicalLicense', formData.driverVehicalLicense); // Changed from driverVehicleLicense
+    data.append('email', formData.email);
+    data.append('driverVehicalLicense', formData.driverVehicalLicense);
     data.append('driverPhone', formData.driverPhone);
     data.append('password', formData.password);
-    data.append('hasOwnCar', formData.hasOwnCar); // Changed from hasVehicle
+    data.append('hasOwnCar', formData.hasOwnCar);
 
-    // Additional fields not directly in Driver model but likely expected by backend
     if (formData.hasOwnCar) {
       data.append('carBrand', formData.carBrand);
       data.append('carModel', formData.carModel);
       data.append('carLicensePlate', formData.carLicensePlate);
       data.append('capacity', formData.capacity);
-      data.append('baseRate', formData.baseplate); // Assuming baseplate meant baseRate
+      data.append('baseRate', formData.baseRate);
       data.append('driverRate', formData.driverRate);
-      if (formData.carImage) {
-        data.append('carImage', formData.carImage);
+      if (formData.carImg) {
+        data.append('carImg', formData.carImg); // Matches backend expectation
       }
     }
 
@@ -67,9 +66,7 @@ const DriverRegister = () => {
     const { name, value, type, checked, files } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : 
-              type === 'file' ? files[0] : 
-              value,
+      [name]: type === 'checkbox' ? checked : type === 'file' ? files[0] : value,
     });
   };
 
@@ -137,7 +134,7 @@ const DriverRegister = () => {
                     </div>
                     <input
                       type="email"
-                      name="email" // Changed from driverEmail
+                      name="email"
                       value={formData.email}
                       onChange={handleChange}
                       className="pl-10 w-full px-4 py-2 sm:py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 text-sm sm:text-base"
@@ -152,7 +149,7 @@ const DriverRegister = () => {
                     </div>
                     <input
                       type="text"
-                      name="driverVehicalLicense" // Changed from vehicleLicense
+                      name="driverVehicalLicense"
                       value={formData.driverVehicalLicense}
                       onChange={handleChange}
                       className="pl-10 w-full px-4 py-2 sm:py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 text-sm sm:text-base"
@@ -191,7 +188,7 @@ const DriverRegister = () => {
                   <div className="flex items-center">
                     <input
                       type="checkbox"
-                      name="hasOwnCar" // Changed from hasVehicle
+                      name="hasOwnCar"
                       checked={formData.hasOwnCar}
                       onChange={handleChange}
                       className="w-4 h-4 text-lime-400 bg-gray-800/50 border-gray-700 rounded focus:ring-lime-400"
@@ -252,7 +249,7 @@ const DriverRegister = () => {
                         </div>
                         <input
                           type="file"
-                          name="carImage"
+                          name="carImg" // Changed to match backend
                           onChange={handleChange}
                           accept="image/*"
                           className="pl-10 w-full px-4 py-2 sm:py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 text-sm sm:text-base file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-lime-400 file:text-gray-900 hover:file:bg-lime-300"
@@ -280,9 +277,9 @@ const DriverRegister = () => {
                           <Car className="h-5 w-5 text-lime-400" />
                         </div>
                         <input
-                          type="text"
-                          name="baseplate" // Assuming this is meant to be baseRate
-                          value={formData.baseplate}
+                          type="number"
+                          name="baseRate" // Changed to match Car model
+                          value={formData.baseRate}
                           onChange={handleChange}
                           className="pl-10 w-full px-4 py-2 sm:py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 text-sm sm:text-base"
                           placeholder="Base Rate"

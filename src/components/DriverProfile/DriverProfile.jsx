@@ -178,7 +178,7 @@ const DriverProfile = () => {
   const toggleAvailability = async () => {
     try {
       const response = await axios.put(
-        `${API_BASE_URL}/${driver.driverId}/availability`,
+        `${API_BASE_URL}/${driverId}/availability`,
         { available: !driver.available },
         {
           headers: {
