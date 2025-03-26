@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   MapPin,
@@ -21,12 +22,14 @@ import {
   Phone as PhoneIcon,
   Mail as MailIcon,
   Save as SaveIcon,
+  LogOut,
 } from "lucide-react";
 import axios from "axios";
 import { useAuth } from "../../util/AuthContex";
 
 const CustomerProfile = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [customer, setCustomer] = useState({
     customerId: "",
@@ -207,6 +210,11 @@ const CustomerProfile = () => {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/AuthLogin");
+  };
+
   const getFullName = () => {
     return customer.customerName || user?.username || "User";
   };
@@ -277,8 +285,17 @@ const CustomerProfile = () => {
           </h1>
           <div className="flex items-center gap-3">
             <span className="text-gray-300">{getFullName()}</span>
-            <div className="w-10 h-10 rounded-full bg-lime-400 text-gray-900 flex items-center justify-center font-bold">
-              {getInitial()}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleLogout}
+                className="p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+                title="Logout"
+              >
+                <LogOut size={20} />
+              </button>
+              <div className="w-10 h-10 rounded-full bg-lime-400 text-gray-900 flex items-center justify-center font-bold">
+                {getInitial()}
+              </div>
             </div>
           </div>
         </div>
@@ -312,6 +329,15 @@ const CustomerProfile = () => {
                     >
                       <CalendarIcon size={20} />
                       <span>My Bookings</span>
+                    </button>
+                  </li>
+                  <li className="mt-4 pt-4 border-t border-gray-700">
+                    <button
+                      className="w-full text-left p-3 rounded-md flex items-center gap-3 hover:bg-gray-700 text-red-400"
+                      onClick={handleLogout}
+                    >
+                      <LogOut size={20} />
+                      <span>Logout</span>
                     </button>
                   </li>
                 </ul>
